@@ -1,0 +1,16 @@
+{
+  "name": "video-service",
+  "version": "1.0.0",
+  "description": "A video service mock backend",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "typescript",
+    "javascript",
+    "backend"
+  ],
+  "author": "Jai Prakash Kumar",
+  "license": "ISC"
+}
