@@ -12,7 +12,7 @@ app.use(cookieParser());
 
 import userRouter from "./routes/user.routes.js";
 
-app.use("/api/v1/users", userRouter);
+app.use("/api/v1/user", userRouter);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
