@@ -12,13 +12,30 @@ const uploadOnCloudinary = async (localFilePath) => {
     const uploadedFileData = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
     });
-    fs.unlinkSync(localFilePath);
+
     // console.log(uploadedFileData);
     return uploadedFileData;
   } catch (err) {
-    fs.unlinkSync(localFilePath);
     return null;
+  } finally {
+    // ✅ always runs (success or failure)
+    try {
+      if (localFilePath) fs.unlinkSync(localFilePath);
+    } catch (err) {
+      console.warn("Temp file deletion failed:", err.message);
+    }
   }
 };
 
-export { uploadOnCloudinary };
+const deleteFromCloudinary = async (public_id) => {
+  try {
+    const res = await cloudinary.uploader.destroy(public_id);
+    if (res.result !== "ok") {
+      console.warn("old image not found or already deleted");
+    }
+  } catch (error) {
+    console.error("Cloudinary deletion failed:", error);
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary };

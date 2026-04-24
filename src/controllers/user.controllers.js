@@ -1,10 +1,14 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  deleteFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import removeTempFiles from "../utils/RemoveTempFiles.js";
 import jwt from "jsonwebtoken";
+// import { upload } from "../middlewares/multer.middleware.js";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -104,7 +108,13 @@ const registerUser = asyncHandler(async (req, res, next) => {
   let coverImage = null;
   if (coverImageLocalPath) {
     const uploaded = await uploadOnCloudinary(coverImageLocalPath);
-    coverImage = uploaded?.url || null;
+
+    if (uploaded) {
+      coverImage = {
+        url: uploaded.url,
+        public_id: uploaded.public_id,
+      };
+    }
   }
 
   if (!avatar) {
@@ -113,7 +123,10 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
   const user = await User.create({
     fullName,
-    avatar: avatar.url,
+    avatar: {
+      url: avatar.url,
+      public_id: avatar.public_id,
+    },
     coverImage: coverImage || "",
     email: email.toLowerCase(),
     username: username.toLowerCase(),
@@ -281,4 +294,139 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken };
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    throw new ApiError(401, "Both old and new passwords required");
+  }
+
+  const userData = req.user;
+
+  if (!userData) {
+    throw new ApiError(401, "User unauthorized");
+  }
+
+  const user = await User.findById(userData?._id);
+
+  if (!user) {
+    throw new ApiError(401, "User not found in database");
+  }
+
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Invalid password");
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  const user = req.user;
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Current user fetched successfully"));
+});
+
+const updateAvatar = asyncHandler(async (req, res) => {
+  try {
+    const avatarLocalPath = req.file?.path;
+
+    if (!avatarLocalPath) {
+      throw new ApiError(401, "Cannot find new avatar image");
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+    if (!avatar) {
+      throw new ApiError(401, "Error uploading avatar image to cloud");
+    }
+
+    const avatarObject = {
+      url: avatar.url,
+      public_id: avatar.public_id,
+    };
+
+    const user = await User.findById(req.user?._id);
+
+    if (!user) {
+      throw new ApiError(401, "Unauthorized Request");
+    }
+
+    const oldPublicId = user.avatar?.public_id;
+
+    user.avatar = avatarObject;
+    await user.save({ validateBeforeSave: false });
+    if (oldPublicId) {
+      await deleteFromCloudinary(oldPublicId);
+    }
+    // console.log("Error not here");
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, user, "Avatar updated successfully"));
+  } catch (error) {
+    throw new ApiError(
+      error.statusCode || 500,
+      error.message || "Something went wrong while updating your avatar"
+    );
+  }
+});
+
+const updateCoverImage = asyncHandler(async (req, res) => {
+  const coverImageLocalPath = req.file?.path;
+
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "Cover image file missing");
+  }
+
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+  if (!coverImage) {
+    throw new ApiError(500, "Cloudinary upload failed");
+  }
+
+  // console.log("error not here");
+
+  const coverImageObject = {
+    url: coverImage.url,
+    public_id: coverImage.public_id,
+  };
+
+  const user = await User.findById(req.user?._id);
+
+  if (!user) {
+    throw new ApiError(401, "Unauthorized Request");
+  }
+
+  const oldPublicId = user.coverImage?.public_id;
+
+  user.coverImage = coverImageObject;
+  await user.save({ validateBeforeSave: false });
+  if (oldPublicId) {
+    await deleteFromCloudinary(oldPublicId);
+  }
+  // console.log("Error not here");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Cover image updated successfully"));
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateAvatar,
+  updateCoverImage,
+};
