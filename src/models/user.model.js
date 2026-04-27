@@ -2,17 +2,6 @@ import mongoose, { Schema } from "mongoose";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
-const imageSchema = {
-  url: {
-    type: String,
-    required: true,
-  },
-  public_id: {
-    type: String,
-    required: true,
-  },
-};
-
 const userSchema = new Schema(
   {
     username: {
@@ -34,7 +23,6 @@ const userSchema = new Schema(
       type: String,
       required: true,
       trim: true,
-      index: true,
     },
     // avatar: {
     //   type: String,
@@ -73,10 +61,13 @@ const userSchema = new Schema(
   }
 );
 
-userSchema.pre("save", async function () {
+userSchema.index({ fullName: "text", username: "text" });
+
+userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return;
 
   this.password = await bcrypt.hash(this.password, 10);
+  next();
 });
 
 userSchema.methods.isPasswordCorrect = async function (password) {
