@@ -250,10 +250,11 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     // }
 
     const incomingRefreshToken =
-      req.cookies?.refreshToken || req.header.refreshToken;
+      req.cookies?.refreshToken ||
+      req.header("Authorization")?.replace("Bearer ", "");
 
     if (!incomingRefreshToken) {
-      return new ApiError(401, "Unauthorized access");
+      throw new ApiError(401, "Unauthorized access");
     }
 
     const decodedToken = jwt.verify(
@@ -261,13 +262,13 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       process.env.REFRESH_TOKEN_SECRET
     );
 
-    const user = await User.findById(decodedToken?.id);
+    const user = await User.findById(decodedToken?._id);
 
     if (!user) {
       throw new ApiError(401, "Invalid refresh token");
     }
 
-    if (user?.refreshToken !== incomingRefreshToken) {
+    if (user?.refreshToken.toString() !== incomingRefreshToken.toString()) {
       throw new ApiError(401, "Refresh token is expired or used");
     }
 
@@ -291,7 +292,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
-    return new ApiError(500, "Something went wrong while refreshing the token");
+    throw new ApiError(
+      error.status || 500,
+      error.message || "Something went wrong while refreshing the token"
+    );
   }
 });
 
@@ -486,7 +490,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     },
   ]);
 
-  console.log(channel);
+  // console.log(channel);
 
   if (!channel?.length) {
     throw new ApiError(404, "channel does not exist");
