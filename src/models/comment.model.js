@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const commentSchema = new Schema(
   {
@@ -26,11 +27,23 @@ const commentSchema = new Schema(
       default: 0,
     },
     likesCount: Number,
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
+    isEdited: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+commentSchema.plugin(mongooseAggregatePaginate);
 
 commentSchema.index({ video: 1, parentComment: 1, createdAt: -1 });
 commentSchema.index({ parentComment: 1 });
