@@ -115,7 +115,8 @@ const addComment = asyncHandler(async (req, res) => {
 });
 
 const deleteComment = asyncHandler(async (req, res) => {
-  const { videoId, commentId } = req.body;
+  const { videoId } = req.body;
+  const { commentId } = req.params;
   const user = req.user;
 
   if (!videoId || !mongoose.Types.ObjectId.isValid(videoId)) {
@@ -199,7 +200,8 @@ const deleteComment = asyncHandler(async (req, res) => {
 });
 
 const updateComment = asyncHandler(async (req, res) => {
-  const { commentId, content } = req.body;
+  const { content } = req.body;
+  const { commentId } = req.params;
   const user = req.user;
 
   if (!commentId || !mongoose.Types.ObjectId.isValid(commentId)) {

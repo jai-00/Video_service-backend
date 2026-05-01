@@ -12,9 +12,15 @@ app.use(cookieParser());
 
 import userRouter from "./routes/user.routes.js";
 import videoRouter from "./routes/video.routes.js";
+import healthcheckRouter from "./routes/healthcheck.routes.js";
+import likeRouter from "./routes/like.routes.js";
+import commentRouter from "./routes/comment.routes.js";
 
+app.use("/api/v1/healthcheck", healthcheckRouter);
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/vid", videoRouter);
+app.use("/api/v1/comment", commentRouter);
+app.use("/api/v1/like", likeRouter);
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   res.status(statusCode).json({
