@@ -1,9 +1,8 @@
-import { asyncHandler } from "../utils/asyncHandler";
+import { asyncHandler } from "../utils/asyncHandler.js";
 import { Comment } from "../models/comment.model.js";
 import mongoose from "mongoose";
-import { ApiError } from "../utils/ApiError";
+import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { Video } from "../models/video.model.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
@@ -21,7 +20,11 @@ const getVideoComments = asyncHandler(async (req, res) => {
 
   const pipeline = Comment.aggregate([
     {
-      $match: { video: new mongoose.Types.ObjectId(videoId) },
+      $match: {
+        video: new mongoose.Types.ObjectId(videoId),
+        isDeleted: false,
+        parentComment: null,
+      },
     },
     {
       $sort: { likesCount: -1, createdAt: -1 },
@@ -51,9 +54,10 @@ const getVideoComments = asyncHandler(async (req, res) => {
   ]);
 
   const comments = await Comment.aggregatePaginate(pipeline, options);
-  console.log("comments: ", comments);
 
-  return res.status(200).json({ message: "Comments fetched successfully" });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, comments, "Comments fetched successfully"));
 });
 
 const addComment = asyncHandler(async (req, res) => {
@@ -83,7 +87,7 @@ const addComment = asyncHandler(async (req, res) => {
     if (!parent) {
       throw new ApiError(404, "Parent comment not found");
     }
-    if (parent.toString() !== videoId.toString()) {
+    if (parent.video.toString() !== videoId.toString()) {
       throw new ApiError(400, "Parent comment does not belong to this video");
     }
   }
@@ -127,7 +131,7 @@ const deleteComment = asyncHandler(async (req, res) => {
   }
 
   const comment = await Comment.findById(commentId).select(
-    "owner video parentComment"
+    "owner video parentComment isDeleted"
   );
 
   if (!comment) {
@@ -140,24 +144,55 @@ const deleteComment = asyncHandler(async (req, res) => {
   if (comment.owner.toString() !== user._id.toString()) {
     throw new ApiError(403, "User not authorized to perform the action");
   }
+  const session = await mongoose.startSession();
+  await session.startTransaction();
 
-  const hasReplies = await Comment.exists({ parentComment: commentId });
-  if (hasReplies) {
-    if (!comment.isDeleted) {
-      await Comment.findByIdAndUpdate(commentId, {
-        content: "This comment has been deleted",
-        isDeleted: true,
-      });
+  try {
+    const hasReplies = await Comment.exists({
+      parentComment: commentId,
+      isDeleted: false,
+    }).session(session);
+    if (hasReplies) {
+      if (!comment.isDeleted) {
+        await Comment.findByIdAndUpdate(
+          commentId,
+          {
+            content: "This comment has been deleted",
+            isDeleted: true,
+          },
+          { session }
+        );
+      }
+    } else {
+      if (comment.parentComment) {
+        const parentComment = await Comment.findByIdAndUpdate(
+          comment.parentComment,
+          {
+            $inc: { repliesCount: -1 },
+          },
+          { new: true, session, select: "repliesCount isDeleted" }
+        );
+
+        if (!parentComment) {
+          throw new ApiError(
+            404,
+            "Parent comment not found or unable to update"
+          );
+        }
+
+        if (parentComment.repliesCount === 0 && parentComment.isDeleted) {
+          await Comment.deleteOne({ _id: parentComment._id }, { session });
+        }
+      }
+      await Comment.findByIdAndDelete(commentId, { session });
     }
-  } else {
-    if (comment.parentComment) {
-      await Comment.findByIdAndUpdate(comment.parentComment, {
-        $inc: { repliesCount: -1 },
-      });
-    }
-    await Comment.findByIdAndDelete(commentId);
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw new ApiError(500, "Failed to delete comment");
+  } finally {
+    session.endSession();
   }
-
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "Comment deleted successfully"));
