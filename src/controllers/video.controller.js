@@ -6,6 +6,10 @@ import {
   deleteFromCloudinary,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
+import { Like } from "../models/like.model.js";
+import jwt from "jsonwebtoken";
+import { User } from "../models/user.model.js";
+import mongoose, { isValidObjectId } from "mongoose";
 
 const getVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -99,6 +103,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     description,
     duration: duration,
     views: 0,
+    likesCount: 0,
     isPublished: true,
     owner: owner._id,
   });
@@ -114,19 +119,29 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-
-  if (!videoId) {
+  const user = req.user;
+  if (!videoId || !isValidObjectId(videoId)) {
     throw new ApiError(400, "Video id missing");
   }
-
   const video = await Video.findById(videoId);
 
   if (!video) {
-    throw new ApiError(400, "No such video found");
+    throw new ApiError(404, "Video not found");
   }
+  let hasLiked = false;
+  if (user) {
+    hasLiked = !!(await Like.exists({ video: videoId, likedBy: user._id }));
+  }
+
   return res
     .status(200)
-    .json(new ApiResponse(200, video, "Specified video fetched successfully"));
+    .json(
+      new ApiResponse(
+        200,
+        { ...video.toObject(), hasLiked },
+        "Specified video fetched successfully"
+      )
+    );
 });
 
 const updateVideo = asyncHandler(async (req, res) => {

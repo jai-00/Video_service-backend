@@ -7,13 +7,16 @@ import {
   togglePublishStatus,
   updateVideo,
 } from "../controllers/video.controller.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import {
+  optionalVerifyJWT,
+  verifyJWT,
+} from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
 router.route("/videos").get(getVideos);
-router.route("/:videoId").get(getVideoById);
+router.route("/:videoId").get(optionalVerifyJWT, getVideoById);
 
 //protectedRoutes
 router

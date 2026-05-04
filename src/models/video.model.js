@@ -29,6 +29,10 @@ const videoSchema = new Schema(
       type: Number,
       required: true,
     },
+    likesCount: {
+      type: Number,
+      default: 0,
+    },
     views: {
       type: Number,
       required: true,
@@ -52,6 +56,7 @@ const videoSchema = new Schema(
 videoSchema.index({ title: "text" });
 videoSchema.index({ owner: 1 });
 videoSchema.index({ createdAt: -1 });
+videoSchema.index({ isPublished: 1 });
 videoSchema.plugin(mongooseAggregatePaginate);
 
 export const Video = mongoose.model("Video", videoSchema);

@@ -11,6 +11,10 @@ const tweetSchema = new Schema(
       type: String,
       required: true,
     },
+    likesCount: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
