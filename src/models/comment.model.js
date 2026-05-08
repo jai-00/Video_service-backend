@@ -26,7 +26,10 @@ const commentSchema = new Schema(
       type: Number,
       default: 0,
     },
-    likesCount: Number,
+    likesCount: {
+      type: Number,
+      default: 0,
+    },
     isDeleted: {
       type: Boolean,
       default: false,

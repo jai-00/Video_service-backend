@@ -48,6 +48,14 @@ const userSchema = new Schema(
         ref: "Video",
       },
     ],
+    subscriberCount: {
+      type: Number,
+      default: 0,
+    },
+    subscribedToCount: {
+      type: Number,
+      default: 0,
+    },
     password: {
       type: String,
       required: [true, "Password is required"],

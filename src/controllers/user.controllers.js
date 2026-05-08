@@ -9,6 +9,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import removeTempFiles from "../utils/RemoveTempFiles.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import { Subscription } from "../models/subscription.model.js";
 // import { upload } from "../middlewares/multer.middleware.js";
 
 const generateAccessAndRefreshTokens = async (userId) => {
@@ -128,6 +129,8 @@ const registerUser = asyncHandler(async (req, res, next) => {
       url: avatar.url,
       public_id: avatar.public_id,
     },
+    subscriberCount: 0,
+    subscribedToCount: 0,
     coverImage: coverImage || "",
     email: email.toLowerCase(),
     username: username.toLowerCase(),
@@ -432,75 +435,90 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     throw new ApiError(400, "channel name is missing");
   }
 
-  const channel = await User.aggregate([
-    {
-      $match: {
-        username: username?.toLowerCase(),
-      },
-    },
-    {
-      $lookup: {
-        from: "subscriptions",
-        localField: "_id",
-        foreignField: "channel",
-        as: "subscribers",
-      },
-    },
-    {
-      $lookup: {
-        from: "subscriptions",
-        localField: "_id",
-        foreignField: "subscriber",
-        as: "subscribedTo",
-      },
-    },
-    {
-      $addFields: {
-        subscribersCount: {
-          $size: "$subscribers",
-        },
-        channelsSubscribedToCount: {
-          $size: "$subscribedTo",
-        },
-        isSubscribed: {
-          $cond: {
-            if: {
-              $in: [
-                new mongoose.Types.ObjectId(req.user?._id),
-                "$subscribers.subscriber",
-              ],
-            },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        fullName: 1,
-        username: 1,
-        email: 1,
-        subscribersCount: 1,
-        channelsSubscribedToCount: 1,
-        isSubscribed: 1,
-        avatar: 1,
-        coverImage: 1,
-      },
-    },
-  ]);
+  // const channel = await User.aggregate([
+  //   {
+  //     $match: {
+  //       username: username?.toLowerCase(),
+  //     },
+  //   },
+  //   {
+  //     $lookup: {
+  //       from: "subscriptions",
+  //       localField: "_id",
+  //       foreignField: "channel",
+  //       as: "subscribers",
+  //     },
+  //   },
+  //   {
+  //     $lookup: {
+  //       from: "subscriptions",
+  //       localField: "_id",
+  //       foreignField: "subscriber",
+  //       as: "subscribedTo",
+  //     },
+  //   },
+  //   {
+  //     $addFields: {
+  //       subscriberCount: {
+  //         $size: "$subscribers",
+  //       },
+  //       channelsSubscribedToCount: {
+  //         $size: "$subscribedTo",
+  //       },
+  //       isSubscribed: {
+  //         $cond: {
+  //           if: {
+  //             $in: [
+  //               new mongoose.Types.ObjectId(req.user?._id),
+  //               "$subscribers.subscriber",
+  //             ],
+  //           },
+  //           then: true,
+  //           else: false,
+  //         },
+  //       },
+  //     },
+  //   },
+  //   {
+  //     $project: {
+  //       fullName: 1,
+  //       username: 1,
+  //       email: 1,
+  //       subscriberCount: 1,
+  //       channelsSubscribedToCount: 1,
+  //       isSubscribed: 1,
+  //       avatar: 1,
+  //       coverImage: 1,
+  //     },
+  //   },
+  // ]);
 
-  // console.log(channel);
+  const channel = await User.findOne({
+    username: username.toLowerCase(),
+  })
+    .select("-watchHistory -password -refreshToken")
+    .lean();
 
-  if (!channel?.length) {
+  if (!channel) {
     throw new ApiError(404, "channel does not exist");
   }
 
+  channel.isSubscribed = false;
+
+  if (req.user) {
+    const isSubscribed = await Subscription.exists({
+      channel: channel._id,
+      subscriber: req.user._id,
+    });
+
+    channel.isSubscribed = !!isSubscribed;
+  }
+
+  // console.log(channel);
+
   return res
     .status(200)
-    .json(
-      new ApiResponse(200, channel[0], "Channel data fetched successfully")
-    );
+    .json(new ApiResponse(200, channel, "Channel data fetched successfully"));
 });
 
 const getWatchHistory = asyncHandler(async (req, res) => {
