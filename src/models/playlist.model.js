@@ -25,6 +25,10 @@ const playlistsSchema = new Schema(
       ref: "User",
       required: true,
     },
+    visibility: {
+      type: "public" | "private" | "unlisted",
+      default: "public",
+    },
   },
   {
     timestamps: true,
